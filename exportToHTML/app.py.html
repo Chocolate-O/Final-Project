@@ -1,0 +1,106 @@
+<html>
+<head>
+<title>app.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #cc7832;}
+.s1 { color: #a9b7c6;}
+.s2 { color: #6a8759;}
+.s3 { color: #808080;}
+.s4 { color: #6897bb;}
+</style>
+</head>
+<body bgcolor="#2b2b2b">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#606060" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+app.py</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">os</span>
+<span class="s0">import </span><span class="s1">glob</span>
+<span class="s0">import </span><span class="s1">tensorflow </span><span class="s0">as </span><span class="s1">tf</span>
+<span class="s0">from </span><span class="s1">flask </span><span class="s0">import </span><span class="s1">Flask</span><span class="s0">, </span><span class="s1">render_template</span><span class="s0">, </span><span class="s1">request</span><span class="s0">, </span><span class="s1">send_from_directory</span>
+<span class="s0">from </span><span class="s1">tensorflow.keras.preprocessing.image </span><span class="s0">import </span><span class="s1">ImageDataGenerator</span>
+
+<span class="s1">app = Flask(__name__)</span>
+
+<span class="s1">dir_path = os.path.dirname(os.path.realpath(__file__))</span>
+<span class="s1">UPLOAD_FOLDER = </span><span class="s2">&quot;uploads/all_class&quot;</span>
+<span class="s1">STATIC_FOLDER = </span><span class="s2">&quot;static&quot;</span>
+
+<span class="s3"># Load model</span>
+<span class="s1">model = tf.keras.models.load_model(STATIC_FOLDER + </span><span class="s2">&quot;/model.h5&quot;</span><span class="s1">)</span>
+
+<span class="s1">IMAGE_SIZE = </span><span class="s4">64</span>
+
+<span class="s3"># Define the classes</span>
+<span class="s1">classes = {</span>
+    <span class="s4">0</span><span class="s1">: </span><span class="s2">'Actinic keratoses and intraepithelial carcinomae'</span><span class="s0">,</span>
+    <span class="s4">1</span><span class="s1">: </span><span class="s2">'Basal cell carcinoma'</span><span class="s0">,</span>
+    <span class="s4">2</span><span class="s1">: </span><span class="s2">'Benign keratosis-like lesions'</span><span class="s0">,</span>
+    <span class="s4">3</span><span class="s1">: </span><span class="s2">'Dermatofibroma'</span><span class="s0">,</span>
+    <span class="s4">4</span><span class="s1">: </span><span class="s2">'Melanocytic nevi'</span><span class="s0">,</span>
+    <span class="s4">5</span><span class="s1">: </span><span class="s2">'Pyogenic granulomas and hemorrhage'</span><span class="s0">,</span>
+    <span class="s4">6</span><span class="s1">: </span><span class="s2">'Melanoma'</span>
+<span class="s1">}</span>
+
+<span class="s0">def </span><span class="s1">load_and_preprocess_image():</span>
+    <span class="s1">test_fldr = </span><span class="s2">'uploads'</span>
+    <span class="s1">test_generator = ImageDataGenerator(rescale=</span><span class="s4">1.</span><span class="s1">/</span><span class="s4">255</span><span class="s1">).flow_from_directory(</span>
+            <span class="s1">test_fldr</span><span class="s0">,</span>
+            <span class="s1">target_size=(IMAGE_SIZE</span><span class="s0">, </span><span class="s1">IMAGE_SIZE)</span><span class="s0">,</span>
+            <span class="s1">batch_size=</span><span class="s4">1</span><span class="s0">,</span>
+            <span class="s1">class_mode=</span><span class="s0">None,</span>
+            <span class="s1">shuffle=</span><span class="s0">False</span><span class="s1">)</span>
+    <span class="s1">test_generator.reset()</span>
+    <span class="s0">return </span><span class="s1">test_generator</span>
+
+
+<span class="s3"># Predict &amp; classify image</span>
+<span class="s0">def </span><span class="s1">classify(model):</span>
+    <span class="s1">test_generator = load_and_preprocess_image()</span>
+    <span class="s1">probs = model.predict_generator(test_generator</span><span class="s0">, </span><span class="s1">steps=len(test_generator))</span>
+    <span class="s1">predicted_class = classes[tf.argmax(probs[</span><span class="s4">0</span><span class="s1">]).numpy()]</span>
+    <span class="s1">classified_prob = tf.reduce_max(probs[</span><span class="s4">0</span><span class="s1">]).numpy()</span>
+    <span class="s0">return </span><span class="s1">predicted_class</span><span class="s0">, </span><span class="s1">classified_prob</span>
+
+
+<span class="s3"># home page</span>
+<span class="s1">@app.route(</span><span class="s2">&quot;/&quot;</span><span class="s0">, </span><span class="s1">methods=[</span><span class="s2">'GET'</span><span class="s1">])</span>
+<span class="s0">def </span><span class="s1">home():</span>
+    <span class="s1">filelist = glob.glob(</span><span class="s2">&quot;uploads/all_class/*.*&quot;</span><span class="s1">)</span>
+    <span class="s0">for </span><span class="s1">filePath </span><span class="s0">in </span><span class="s1">filelist:</span>
+        <span class="s0">try</span><span class="s1">:</span>
+            <span class="s1">os.remove(filePath)</span>
+        <span class="s0">except</span><span class="s1">:</span>
+            <span class="s1">print(</span><span class="s2">&quot;Error while deleting file&quot;</span><span class="s1">)</span>
+    <span class="s0">return </span><span class="s1">render_template(</span><span class="s2">&quot;home.html&quot;</span><span class="s1">)</span>
+
+
+<span class="s1">@app.route(</span><span class="s2">&quot;/classify&quot;</span><span class="s0">, </span><span class="s1">methods=[</span><span class="s2">&quot;POST&quot;</span><span class="s0">, </span><span class="s2">&quot;GET&quot;</span><span class="s1">])</span>
+<span class="s0">def </span><span class="s1">upload_file():</span>
+    <span class="s0">if </span><span class="s1">request.method == </span><span class="s2">&quot;GET&quot;</span><span class="s1">:</span>
+        <span class="s0">return </span><span class="s1">render_template(</span><span class="s2">&quot;home.html&quot;</span><span class="s1">)</span>
+    <span class="s0">else</span><span class="s1">:</span>
+        <span class="s1">file = request.files[</span><span class="s2">&quot;image&quot;</span><span class="s1">]</span>
+        <span class="s1">upload_image_path = os.path.join(UPLOAD_FOLDER</span><span class="s0">, </span><span class="s1">file.filename)</span>
+        <span class="s1">file.save(upload_image_path)</span>
+
+        <span class="s1">label</span><span class="s0">, </span><span class="s1">prob = classify(model)</span>
+        <span class="s1">prob = round((prob * </span><span class="s4">100</span><span class="s1">)</span><span class="s0">, </span><span class="s4">2</span><span class="s1">)</span>
+
+    <span class="s0">return </span><span class="s1">render_template(</span>
+        <span class="s2">&quot;classify.html&quot;</span><span class="s0">, </span><span class="s1">image_file_name=file.filename</span><span class="s0">, </span><span class="s1">label=label</span><span class="s0">, </span><span class="s1">prob=prob</span>
+    <span class="s1">)</span>
+
+
+<span class="s1">@app.route(</span><span class="s2">&quot;/classify/&lt;filename&gt;&quot;</span><span class="s1">)</span>
+<span class="s0">def </span><span class="s1">send_file(filename):</span>
+    <span class="s0">return </span><span class="s1">send_from_directory(UPLOAD_FOLDER</span><span class="s0">, </span><span class="s1">filename)</span>
+
+
+<span class="s0">if </span><span class="s1">__name__ == </span><span class="s2">&quot;__main__&quot;</span><span class="s1">:</span>
+    <span class="s1">app.run()</span>
+</pre>
+</body>
+</html>
